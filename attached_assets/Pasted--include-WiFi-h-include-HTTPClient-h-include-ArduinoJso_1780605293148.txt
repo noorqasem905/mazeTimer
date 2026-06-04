@@ -1,0 +1,170 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+
+// ---------- WiFi ----------
+const char* WIFI_SSID = "Moh'dQasem_2.4Ghz";
+const char* WIFI_PASSWORD = "T%ufmvn4";
+
+// ---------- Supabase ----------
+const char* SUPABASE_PROJECT_URL = "https://qdazjbrfytdtpklgxeyg.supabase.co";
+const char* SUPABASE_KEY = "sb_publishable_IKkvtQe200-M5FtSgue1Vw_Z8myoTH-";
+
+// ---------- Two Digital IR Sensors ----------
+const int START_SENSOR_PIN = 19; 
+const int STOP_SENSOR_PIN = 18;  
+
+// متغيرات المقاطعة الفائقة السرعة
+volatile bool isTiming = false;
+volatile unsigned long startMs = 0;
+volatile unsigned long finishMs = 0;
+volatile bool startTriggeredFlag = false;
+volatile bool stopTriggeredFlag = false;
+volatile unsigned long lastStartInterruptTime = 0;
+volatile unsigned long lastStopInterruptTime = 0;
+
+const unsigned long DEBOUNCE_MS = 3000; // منع التشويش الضوئي والاهتزازات
+const unsigned long SETTINGS_POLL_MS = 3000;
+unsigned long lastSettingsPoll = 0;
+
+String activeTeamId = "";
+String activeTeamName = "System / Unknown";
+
+void addSupabaseHeaders(HTTPClient &http, bool jsonBody = false) {
+  http.addHeader("apikey", SUPABASE_KEY);
+  http.addHeader("Authorization", "Bearer " + String(SUPABASE_KEY));
+  if (jsonBody) {
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Prefer", "return=minimal");
+  }
+}
+
+void connectWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+  Serial.println("\nWiFi connected");
+}
+
+// جلب اسم الفريق النشط لتفادي مشكلة الرموز المجهولة في الـ UI
+void fetchActiveTeamName() {
+  if (activeTeamId.length() == 0 || WiFi.status() != WL_CONNECTED) return;
+  HTTPClient http;
+  String url = String(SUPABASE_PROJECT_URL) + "/rest/v1/maze_teams?id=eq." + activeTeamId + "&select=name";
+  http.begin(url);
+  addSupabaseHeaders(http);
+  if (http.GET() == 200) {
+    JsonDocument doc;
+    deserializeJson(doc, http.getString());
+    if (doc.size() > 0 && !doc[0]["name"].isNull()) {
+      activeTeamName = doc[0]["name"].as<String>();
+    }
+  }
+  http.end();
+}
+
+void fetchSettings() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  HTTPClient http;
+  String url = String(SUPABASE_PROJECT_URL) + "/rest/v1/maze_settings?id=eq.default&select=active_team_id";
+  http.begin(url);
+  addSupabaseHeaders(http);
+  if (http.GET() == 200) {
+    JsonDocument doc;
+    deserializeJson(doc, http.getString());
+    if (doc.size() > 0) {
+      String newTeamId = doc[0]["active_team_id"].isNull() ? "" : doc[0]["active_team_id"].as<String>();
+      if (newTeamId != activeTeamId) {
+        activeTeamId = newTeamId;
+        activeTeamName = activeTeamId.length() ? "Loading..." : "No active team";
+        fetchActiveTeamName();
+        Serial.println("🤖 Active Team Synced: " + activeTeamName);
+      }
+    }
+  }
+  http.end();
+}
+
+void sendEvent(String status, int timeMs) {
+  if (WiFi.status() != WL_CONNECTED) return;
+  JsonDocument doc;
+  if (activeTeamId.length()) doc["team_id"] = activeTeamId;
+  doc["team_name"] = activeTeamName;
+  doc["status"] = status;
+  if (timeMs > 0) doc["time_ms"] = timeMs;
+
+  String body; serializeJson(doc, body);
+  HTTPClient http;
+  http.begin(String(SUPABASE_PROJECT_URL) + "/rest/v1/maze_events");
+  addSupabaseHeaders(http, true);
+  http.POST(body);
+  http.end();
+}
+
+void saveRun(int timeMs) {
+  if (WiFi.status() != WL_CONNECTED || activeTeamId.length() == 0) return;
+  JsonDocument doc;
+  doc["team_id"] = activeTeamId;
+  doc["time_ms"] = timeMs;
+  doc["source"] = "esp32_real_int";
+
+  String body; serializeJson(doc, body);
+  HTTPClient http;
+  http.begin(String(SUPABASE_PROJECT_URL) + "/rest/v1/maze_runs");
+  addSupabaseHeaders(http, true);
+  http.POST(body);
+  http.end();
+  Serial.println("💾 Official Run Saved to database.");
+}
+
+void IRAM_ATTR handleStartSensor() {
+  unsigned long currentTime = millis();
+  if (!isTiming && (currentTime - lastStartInterruptTime > DEBOUNCE_MS)) {
+    startMs = currentTime; isTiming = true; startTriggeredFlag = true; lastStartInterruptTime = currentTime;
+  }
+}
+
+void IRAM_ATTR handleStopSensor() {
+  unsigned long currentTime = millis();
+  if (isTiming && (currentTime - lastStopInterruptTime > DEBOUNCE_MS)) {
+    finishMs = currentTime; isTiming = false; stopTriggeredFlag = true; lastStopInterruptTime = currentTime;
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(START_SENSOR_PIN, INPUT_PULLUP);
+  pinMode(STOP_SENSOR_PIN, INPUT_PULLUP);
+  connectWiFi();
+  fetchSettings();
+  attachInterrupt(digitalPinToInterrupt(START_SENSOR_PIN), handleStartSensor, FALLING);
+  attachInterrupt(digitalPinToInterrupt(STOP_SENSOR_PIN), handleStopSensor, FALLING);
+  sendEvent("READY", 0);
+  Serial.println("====== SYSTEM ONLINE & READY ======");
+}
+
+void loop() {
+  if (WiFi.status() != WL_CONNECTED) connectWiFi();
+
+  if (startTriggeredFlag) {
+    startTriggeredFlag = false; 
+    sendEvent("STARTED", 0);
+  }
+
+  if (stopTriggeredFlag) {
+    stopTriggeredFlag = false; 
+    unsigned long elapsed = finishMs - startMs;
+    Serial.println("🏁 Run Finished: " + String(elapsed) + " ms");
+    
+    sendEvent("FINISHED", (int)elapsed); // إرسال سريع لتحديث الواجهة فوراً
+    delay(50); 
+    saveRun((int)elapsed); // حفظ دائم وموثق لتحديث جدول التحكم وشاشة الصدارة
+  }
+
+  if (!isTiming && (millis() - lastSettingsPoll >= SETTINGS_POLL_MS)) {
+    lastSettingsPoll = millis();
+    fetchSettings();
+  }
+  delay(1);
+}

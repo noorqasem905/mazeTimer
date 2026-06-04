@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maze Timer | ESP32 Live</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#050c12;--panel:#071622;--cyan:#00e5ff;--green:#00e676;--red:#ff1744;--yellow:#ffea00;--text:#d9f6ff;--dim:#82a8b8;--border:rgba(0,229,255,.22)}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#0b2235,var(--bg));color:var(--text);font-family:Arial,system-ui,sans-serif;display:grid;place-items:center}.wrap{width:min(900px,94vw);text-align:center}.nav{position:fixed;top:18px;right:18px;display:flex;gap:8px}.nav a{background:#071622;border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;text-decoration:none}.card{background:rgba(7,22,34,.9);border:1px solid var(--border);border-radius:18px;padding:38px;box-shadow:0 0 40px rgba(0,229,255,.08)}h1{color:var(--cyan);letter-spacing:.12em;margin:0}.team{font-size:clamp(1.5rem,5vw,3rem);margin:24px 0;color:white}.timer{font-size:clamp(5rem,18vw,11rem);font-weight:900;line-height:1;color:white;text-shadow:0 0 40px rgba(0,229,255,.35)}.running .timer{color:var(--cyan)}.finished .timer{color:var(--yellow)}.status{display:inline-flex;gap:8px;align-items:center;margin-top:20px;border:1px solid var(--border);border-radius:999px;padding:9px 14px;color:var(--dim)}.dot{width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 12px var(--red)}.dot.ok{background:var(--green);box-shadow:0 0 12px var(--green)}.log{margin-top:22px;text-align:left;max-height:190px;overflow:auto;color:var(--dim);font-family:monospace}.log div{border-bottom:1px solid rgba(0,229,255,.08);padding:6px}button{background:#0b1d2c;border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;cursor:pointer}.bad{color:var(--red)}
+</style>
+</head>
+<body>
+<nav class="nav"><a href="admin.html">Judge Admin</a><a href="leaderboard.html">Leaderboard</a></nav>
+<div class="wrap"><div id="card" class="card"><h1>ASU Maze Competition</h1><p class="muted">ESP32 Wi-Fi live timer</p><div id="team" class="team">No active team</div><div id="timer" class="timer">00.00</div><div class="status"><span id="dot" class="dot"></span><span id="status">Connecting to Supabase...</span></div><p><button onclick="loadInitial()">Refresh</button></p><div id="log" class="log"></div></div></div>
+<script>
+const SUPABASE_URL='https://qdazjbrfytdtpklgxeyg.supabase.co';
+const SUPABASE_KEY='sb_publishable_IKkvtQe200-M5FtSgue1Vw_Z8myoTH-';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let settings=null, activeTeam=null, running=false, startTick=0, interval=null;
+const fmt=ms=>(ms/1000).toFixed(2);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+
+function log(msg){const el=document.getElementById('log');el.innerHTML=`<div>${new Date().toLocaleTimeString()} ${msg}</div>`+el.innerHTML;}
+function setConnected(ok,msg){document.getElementById('dot').className='dot '+(ok?'ok':'');document.getElementById('status').textContent=msg;}
+function setTeamName(){document.getElementById('team').textContent=activeTeam?activeTeam.name:'No active team selected';}
+
+function startTimer(){
+  running=true; startTick=Date.now();
+  document.getElementById('card').className='card running';
+  clearInterval(interval);
+  interval=setInterval(()=>{document.getElementById('timer').textContent=fmt(Date.now()-startTick)},50);
+}
+
+function finishTimer(ms){
+  running=false; clearInterval(interval);
+  document.getElementById('timer').textContent=fmt(ms);
+  document.getElementById('card').className='card finished';
+}
+
+async function loadInitial(){
+  setConnected(false,'Loading from Supabase...');
+  const s=await sb.from('maze_settings').select('*').eq('id','default').maybeSingle();
+  if(s.error){setConnected(false,'Supabase error');return}
+  settings=s.data; activeTeam=null;
+  if(settings&&settings.active_team_id){
+    const t=await sb.from('maze_teams').select('*').eq('id',settings.active_team_id).maybeSingle();
+    activeTeam=t.data||null;
+  }
+  setTeamName(); setConnected(true,'Waiting for ESP32 sensor events');
+}
+
+function handleEvent(payload){
+  const e=payload; if(!e)return;
+  if(e.team_name) document.getElementById('team').textContent=e.team_name; 
+  if(e.status==='STARTED'){ startTimer(); log('START '+esc(e.team_name||'')); } 
+  if(e.status==='FINISHED'){ finishTimer(e.time_ms||0); log('FINISH '+esc(e.team_name||'')+' - '+fmt(e.time_ms||0)+' s'); } 
+  if(e.status==='READY'){ running=false; clearInterval(interval); document.getElementById('timer').textContent="00.00"; document.getElementById('card').className='card'; log('ESP32 READY'); } 
+}
+
+sb.channel('timer-events')
+  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'maze_events' }, (payload) => { handleEvent(payload.new); })
+  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'maze_settings' }, () => { loadInitial(); })
+  .subscribe(status=>{ if(status==='SUBSCRIBED') setConnected(true, 'Live Connection Ready 🚀'); });
+
+loadInitial();
+</script>
+</body>
+</html>

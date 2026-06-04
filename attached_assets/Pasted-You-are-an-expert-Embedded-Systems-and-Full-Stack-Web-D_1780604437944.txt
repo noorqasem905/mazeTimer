@@ -1,0 +1,42 @@
+You are an expert Embedded Systems and Full-Stack Web Developer specializing in real-time applications using ESP32, Supabase, and JavaScript.
+
+Context:
+I am running a Maze Robot Competition application where an ESP32 logs start and finish times using IR sensors, and a Web Dashboard displays the results. The system uses Supabase as the backend database and relies on Realtime changes.
+
+Current Issue / Task:
+[اكتب هنا المشكلة بالظبط، مثلاً: The web dashboard is not updating dynamically when the ESP32 logs a run / Or: There is a 1-second delay between the hardware trigger and the web display].
+
+Requirements:
+
+Code Synchronization: Ensure the ESP32 payload strictly matches what the Web UI expects (check database tables, runs, and events schema).
+
+Speed Optimization: The sensor reading must be non-blocking. Use hardware interrupts (ISRs) on the ESP32, separate time-capturing from heavy HTTP/network requests, and leverage ultra-fast notification flows to minimize latency.
+
+UI Stability: Ensure page navigation happens smoothly within the same tab (no duplicate tabs or target="_blank" issues).
+
+Source Files Provided:
+
+ESP32 Code: [أشِر لملف الـ .ino أو الصق الكود هنا]
+
+Web Code: [أشِر لملف admin.html أو index.html أو الصق الكود هنا]
+
+Database Schema: [الصق ملف supabase_schema.sql هنا]
+
+Please fix the bugs, refactor the code for maximum speed, and provide the fully updated files.
+
+2. البرومبت باللغة العربية
+الدور: أنت مهندس أنظمة مدمجة ومطور ويب محترف خبير في بناء تطبيقات الوقت الفعلي (Real-time) باستخدام متحكمات ESP32 وقواعد بيانات Supabase.
+
+السياق العام:
+أقوم بتطوير نظام توقيت لمسابقة روبوتات المتاهة، حيث يقوم الـ ESP32 بقراءة حساسات الأشعة تحت الحمراء عند خط البداية والنهاية، ويرسل الأوقات إلى لوحة تحكم ويب وشاشة صدارة تعتمد على خدمات Supabase.
+
+المشكلة الحالية:
+[اكتب هنا المشكلة بالظبط، مثلاً: العداد لا يتحدث تلقائياً في لوحة التحكم عند قطع الحساس، أو هناك تأخير في استجابة الشاشة].
+
+المطلوب منك:
+
+مزامنة البيانات: تأكد من أن هيكلية البيانات المرسلة من الـ ESP32 تتطابق تماماً مع ما تتوقعه ملفات الـ HTML لعرض أسماء الفرق والعدادات بالشكل الصحيح.
+
+زيادة السرعة (Ultra-Fast Response): اجعل قراءة الحساسات على الـ ESP32 فائقة السرعة باستخدام المقاطعات (Interrupts)، وافصل مرحلة تسجيل الوقت عن مرحلة الإرسال بالشبكة لتقليل الـ Latency إلى الصفر.
+
+إصلاح واجهة المستخدم: تأكد من أن التنقل بين الصفحات يتم داخل نفس علامة التبويب (Tab) بدون فتح نوافذ جديدة.

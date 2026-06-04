@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaderboard | Maze Competition</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#050c12;--panel:#071622;--cyan:#00e5ff;--gold:#ffd700;--silver:#c0c0c0;--bronze:#cd7f32;--text:#d9f6ff;--dim:#82a8b8;--border:rgba(0,229,255,.22)}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#0b2235,var(--bg));color:var(--text);font-family:Arial,system-ui,sans-serif}.wrap{max-width:1100px;margin:auto;padding:28px}.nav{position:fixed;top:18px;right:18px;display:flex;gap:8px}.nav a{background:#071622;border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;text-decoration:none}header{text-align:center;border-bottom:1px solid var(--border);padding:28px 0;margin-bottom:24px}h1{color:var(--cyan);font-size:clamp(2rem,6vw,4rem);margin:0;letter-spacing:.08em}.muted{color:var(--dim)}.live{display:inline-block;margin-top:10px;border:1px solid rgba(0,230,118,.4);color:#00e676;border-radius:999px;padding:7px 12px}table{width:100%;border-collapse:collapse;background:rgba(7,22,34,.75);border:1px solid var(--border);border-radius:14px;overflow:hidden}th,td{padding:18px;border-bottom:1px solid rgba(0,229,255,.1);text-align:left}th{color:var(--dim);text-transform:uppercase;letter-spacing:.1em}.rank{font-size:1.6rem;font-weight:900;text-align:center;width:90px}.score{text-align:right;font-size:1.5rem;font-weight:900;color:var(--cyan)}.r1 .rank,.r1 .score,.r1 .team{color:var(--gold)}.r2 .rank,.r2 .team{color:var(--silver)}.r3 .rank,.r3 .team{color:var(--bronze)}.team{font-size:1.4rem;font-weight:700}.runs{color:var(--dim);font-size:.9rem}.empty{text-align:center;padding:60px;color:var(--dim)}
+</style>
+</head>
+<body>
+<nav class="nav"><a href="index.html">Timer</a><a href="admin.html">Admin</a></nav>
+<div class="wrap"><header><h1>Leaderboard</h1><p class="muted">ASU Maze Competition · lower time wins</p><div class="live">LIVE</div></header><table><thead><tr><th style="text-align:center">Rank</th><th>Team</th><th>Official Runs</th><th style="text-align:right">Score</th></tr></thead><tbody id="body"><tr><td colspan="4" class="empty">Loading...</td></tr></tbody></table></div>
+<script>
+const SUPABASE_URL='https://qdazjbrfytdtpklgxeyg.supabase.co';
+const SUPABASE_KEY='sb_publishable_IKkvtQe200-M5FtSgue1Vw_Z8myoTH-';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let teams=[],runs=[],settings={runs_per_team:3,ranking_mode:'best'};
+const fmt=ms=>(ms/1000).toFixed(2)+' s';
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+
+async function load(){
+  const [t,r,s]=await Promise.all([sb.from('maze_teams').select('*').order('team_number'),sb.from('maze_runs').select('*').order('created_at'),sb.from('maze_settings').select('*').eq('id','default').maybeSingle()]);
+  if(t.error||r.error||s.error){return}
+  teams=t.data||[]; runs=r.data||[]; settings=s.data||settings; render()
+}
+function scoreFor(rs){
+  if(!rs.length)return null; const official=rs.slice(0,settings.runs_per_team||3);
+  if(settings.ranking_mode==='average')return Math.round(official.reduce((a,b)=>a+b.time_ms,0)/official.length);
+  if(settings.ranking_mode==='total')return official.reduce((a,b)=>a+b.time_ms,0);
+  return Math.min(...official.map(r=>r.time_ms));
+}
+function render(){
+  const rows=teams.map(t=>{const rs=runs.filter(r=>r.team_id===t.id).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));return {team:t,runs:rs,official:rs.slice(0,settings.runs_per_team||3),score:scoreFor(rs)}}).filter(x=>x.score!==null).sort((a,b)=>a.score-b.score);
+  const body=document.getElementById('body');
+  if(!rows.length){body.innerHTML='<tr><td colspan="4" class="empty">No completed runs yet.</td></tr>';return}
+  body.innerHTML=rows.map((x,i)=>`<tr class="r${i+1}"><td class="rank">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</td><td><div class="team">${esc(x.team.name)}</div><div class="runs">${x.runs.map((r,j)=>`R${j+1}: ${fmt(r.time_ms)}`).join(' · ')}</div></td><td>${x.official.length}/${settings.runs_per_team||3}</td><td class="score">${fmt(x.score)}</td></tr>`).join('')}
+
+sb.channel('leaderboard-changes').on('postgres_changes',{event:'*',schema:'public',table:'maze_runs'},load).subscribe();
+load();
+</script>
+</body>
+</html>
