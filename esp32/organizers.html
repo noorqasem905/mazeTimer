@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Club Administration — ASU Maze</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #08090e;
+      --card:    #0f111a;
+      --border:  #1e2236;
+      --primary: #00c8ff;
+      --muted:   #5a6080;
+      --text:    #e8eaf4;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(8,9,14,.92);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(10px);
+      padding: 0 1.5rem;
+      display: flex; align-items: center; gap: 1rem; height: 52px;
+    }
+    nav .logo {
+      font-weight: 800; font-size: .85rem; letter-spacing: .08em;
+      color: var(--primary); text-decoration: none; margin-right: .5rem;
+    }
+    nav a {
+      color: var(--muted); font-size: .82rem; text-decoration: none;
+      padding: .3rem .7rem; border-radius: 6px; font-weight: 500;
+      transition: background .15s, color .15s;
+    }
+    nav a:hover { background: rgba(255,255,255,.06); color: var(--text); }
+    nav a.active { background: rgba(0,200,255,.12); color: var(--primary); }
+
+    /* ── PAGE ── */
+    .page { max-width: 1000px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+
+    /* ── HERO ── */
+    .hero { text-align: center; margin-bottom: 3.5rem; }
+    .badge {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: rgba(0,200,255,.1); border: 1px solid rgba(0,200,255,.2);
+      color: var(--primary); font-size: .78rem; font-weight: 600;
+      padding: .35rem .9rem; border-radius: 99px; margin-bottom: 1rem;
+    }
+    .badge svg { width: 14px; height: 14px; }
+    h1 { font-size: 2.2rem; font-weight: 800; color: #fff; margin-bottom: .6rem; }
+    .desc { color: var(--muted); font-size: .92rem; max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+    /* ── GRID ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 2rem 1.5rem;
+    }
+
+    /* ── PERSON CARD ── */
+    .person {
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; gap: .6rem;
+    }
+    .avatar-wrap {
+      width: 110px; height: 110px;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 2px solid var(--border);
+      background: rgba(0,200,255,.08);
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color .2s;
+      position: relative;
+    }
+    .person:hover .avatar-wrap { border-color: rgba(0,200,255,.4); }
+    .avatar-wrap img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .initials {
+      font-size: 2rem; font-weight: 800; color: var(--primary);
+      line-height: 1; user-select: none;
+    }
+    .person-name { font-weight: 700; font-size: .88rem; color: #fff; line-height: 1.2; }
+    .person-role { font-size: .75rem; color: var(--primary); font-weight: 600; }
+
+    /* ── STATES ── */
+    .state { text-align: center; padding: 5rem 1rem; color: var(--muted); font-size: .95rem; }
+    .state svg { width: 44px; height: 44px; margin: 0 auto 1rem; opacity: .18; display: block; }
+    .notice {
+      margin-bottom: 2rem; padding: .9rem 1.2rem;
+      background: rgba(245,200,66,.08); border: 1px solid rgba(245,200,66,.25);
+      border-radius: 10px; color: #f5c842; font-size: .83rem; line-height: 1.5; text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">⚡ ASU Maze</a>
+  <a href="/">Timer</a>
+  <a href="/leaderboard">Leaderboard</a>
+  <a href="teams.html">Teams</a>
+  <a href="organizers.html" class="active">Organizers</a>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="badge">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      ASU Robotics Club
+    </div>
+    <h1>Club Administration</h1>
+    <p class="desc">The team behind the ASU Maze Competition — organizers, supervisors, and technical leads.</p>
+  </div>
+
+  <div id="notice" class="notice" style="display:none"></div>
+  <div id="grid" class="grid">
+    <div class="state" style="grid-column:1/-1"><p>Loading…</p></div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://qdazjbrfytdtpklgxeyg.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_IKkvtQe200-M5FtSgue1Vw_Z8myoTH-';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const grid   = document.getElementById('grid');
+  const notice = document.getElementById('notice');
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function initials(name) {
+    return name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  }
+
+  async function load() {
+    const { data, error } = await db
+      .from('maze_organizers')
+      .select('*')
+      .order('display_order');
+
+    if (error) {
+      const missing = error.message?.toLowerCase().includes('schema cache') || error.code === '42P01' || error.code === 'PGRST106';
+      if (missing) {
+        notice.style.display = 'block';
+        notice.textContent = '⚠ The maze_organizers table is missing. Run esp32/supabase_new_tables.sql in your Supabase SQL Editor to enable the organizers list.';
+        grid.innerHTML = '';
+        return;
+      }
+      grid.innerHTML = `<div class="state" style="grid-column:1/-1"><p>Error: ${escHtml(error.message)}</p></div>`;
+      return;
+    }
+
+    const organizers = data || [];
+
+    if (organizers.length === 0) {
+      grid.innerHTML = `<div class="state" style="grid-column:1/-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        No organizers added yet. Sign in as admin to add them.
+      </div>`;
+      return;
+    }
+
+    grid.innerHTML = organizers.map(org => {
+      const imgHtml = org.image_url
+        ? `<img src="${escHtml(org.image_url)}" alt="${escHtml(org.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="initials" style="display:none">${escHtml(initials(org.name))}</span>`
+        : `<span class="initials">${escHtml(initials(org.name))}</span>`;
+
+      return `
+        <div class="person">
+          <div class="avatar-wrap">${imgHtml}</div>
+          <div class="person-name">${escHtml(org.name)}</div>
+          <div class="person-role">${escHtml(org.role)}</div>
+        </div>`;
+    }).join('');
+  }
+
+  load();
+</script>
+</body>
+</html>

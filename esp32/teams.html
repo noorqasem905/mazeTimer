@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Competition Teams — ASU Maze</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #08090e;
+      --card:     #0f111a;
+      --border:   #1e2236;
+      --primary:  #00c8ff;
+      --muted:    #5a6080;
+      --text:     #e8eaf4;
+      --gold:     #f5c842;
+      --silver:   #a8b2c8;
+      --bronze:   #b06e30;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(8,9,14,.92);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(10px);
+      padding: 0 1.5rem;
+      display: flex; align-items: center; gap: 1rem; height: 52px;
+    }
+    nav .logo {
+      font-weight: 800; font-size: .85rem; letter-spacing: .08em;
+      color: var(--primary); text-decoration: none; margin-right: .5rem;
+    }
+    nav a {
+      color: var(--muted); font-size: .82rem; text-decoration: none;
+      padding: .3rem .7rem; border-radius: 6px; font-weight: 500;
+      transition: background .15s, color .15s;
+    }
+    nav a:hover { background: rgba(255,255,255,.06); color: var(--text); }
+    nav a.active { background: rgba(0,200,255,.12); color: var(--primary); }
+
+    /* ── PAGE ── */
+    .page { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+
+    h1 {
+      font-size: 1.8rem; font-weight: 800; display: flex; align-items: center; gap: .6rem;
+    }
+    h1 svg { color: var(--primary); }
+    .subtitle { color: var(--muted); font-size: .9rem; margin-top: .3rem; }
+
+    /* ── GRID ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.1rem; margin-top: 2rem;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.2rem;
+      display: flex; flex-direction: column; gap: 1rem;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+    .card.gold   { border-color: rgba(245,200,66,.35); background: rgba(245,200,66,.04); }
+    .card.silver { border-color: rgba(168,178,200,.25); background: rgba(168,178,200,.04); }
+    .card.bronze { border-color: rgba(176,110,48,.3);  background: rgba(176,110,48,.04); }
+
+    .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+    .team-icon {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: rgba(0,200,255,.12); border: 1px solid rgba(0,200,255,.25);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .team-icon svg { width: 18px; height: 18px; color: var(--primary); }
+    .team-name { font-weight: 700; font-size: 1rem; color: #fff; line-height: 1.2; }
+    .team-num  { font-size: .75rem; color: var(--muted); margin-top: .15rem; }
+    .rank { font-weight: 700; font-size: .9rem; flex-shrink: 0; }
+    .rank.gold   { color: var(--gold);   }
+    .rank.silver { color: var(--silver); }
+    .rank.bronze { color: var(--bronze); }
+    .rank.other  { color: var(--muted);  }
+
+    /* members */
+    .members-label {
+      font-size: .65rem; font-weight: 700; color: var(--muted);
+      letter-spacing: .08em; text-transform: uppercase; margin-bottom: .45rem;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .chip {
+      font-size: .75rem; font-weight: 500;
+      background: rgba(0,200,255,.1); color: var(--primary);
+      border: 1px solid rgba(0,200,255,.2);
+      padding: .25rem .65rem; border-radius: 99px;
+    }
+    .no-members { font-size: .8rem; color: var(--muted); font-style: italic; }
+
+    /* footer */
+    .card-footer {
+      border-top: 1px solid var(--border);
+      padding-top: .85rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .runs-count { font-size: .82rem; color: var(--muted); display: flex; align-items: center; gap: .35rem; }
+    .runs-count svg { width: 14px; height: 14px; }
+    .score { text-align: right; }
+    .score-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem; font-weight: 700;
+      color: var(--primary); line-height: 1;
+    }
+    .score-mode { font-size: .65rem; color: var(--muted); text-transform: capitalize; margin-top: .15rem; }
+    .no-score { font-size: .82rem; color: var(--muted); }
+
+    /* states */
+    .state { text-align: center; padding: 5rem 1rem; color: var(--muted); font-size: .95rem; }
+    .state svg { width: 44px; height: 44px; margin: 0 auto 1rem; opacity: .2; display: block; }
+
+    .notice {
+      margin-top: 1.5rem; padding: .9rem 1.2rem;
+      background: rgba(245,200,66,.08); border: 1px solid rgba(245,200,66,.25);
+      border-radius: 10px; color: #f5c842; font-size: .83rem; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">⚡ ASU Maze</a>
+  <a href="/">Timer</a>
+  <a href="/leaderboard">Leaderboard</a>
+  <a href="teams.html" class="active">Teams</a>
+  <a href="organizers.html">Organizers</a>
+</nav>
+
+<div class="page">
+  <div>
+    <h1>
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Competition Teams
+    </h1>
+    <p class="subtitle" id="subtitle">Loading…</p>
+  </div>
+
+  <div id="notice" class="notice" style="display:none"></div>
+  <div id="grid" class="grid"></div>
+</div>
+
+<script>
+  const SUPABASE_URL  = 'https://qdazjbrfytdtpklgxeyg.supabase.co';
+  const SUPABASE_KEY  = 'sb_publishable_IKkvtQe200-M5FtSgue1Vw_Z8myoTH-';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const grid     = document.getElementById('grid');
+  const subtitle = document.getElementById('subtitle');
+  const notice   = document.getElementById('notice');
+
+  function fmtMs(ms) {
+    if (ms == null) return '--';
+    return (ms / 1000).toFixed(2) + ' s';
+  }
+
+  function bestScore(runs, mode, limit) {
+    const official = runs.slice(0, limit);
+    if (!official.length) return null;
+    if (mode === 'best')    return Math.min(...official.map(r => r.time_ms));
+    if (mode === 'average') return official.reduce((a, r) => a + r.time_ms, 0) / official.length;
+    return official.reduce((a, r) => a + r.time_ms, 0);
+  }
+
+  function rankLabel(n) {
+    if (n === 1) return ['1st', 'gold'];
+    if (n === 2) return ['2nd', 'silver'];
+    if (n === 3) return ['3rd', 'bronze'];
+    return [`#${n}`, 'other'];
+  }
+
+  async function load() {
+    const [tRes, mRes, rRes, sRes] = await Promise.all([
+      db.from('maze_teams').select('*').order('team_number'),
+      db.from('maze_team_members').select('*'),
+      db.from('maze_runs').select('*').order('created_at'),
+      db.from('maze_settings').select('*').eq('id', 'default').single(),
+    ]);
+
+    // Members table may not exist yet
+    if (mRes.error) {
+      const missing = mRes.error.message?.toLowerCase().includes('schema cache') || mRes.error.code === '42P01' || mRes.error.code === 'PGRST106';
+      if (missing) {
+        notice.style.display = 'block';
+        notice.textContent = '⚠ The maze_team_members table is missing. Run esp32/supabase_new_tables.sql in your Supabase SQL Editor to enable member listings.';
+      }
+    }
+
+    const teams    = tRes.data   || [];
+    const members  = mRes.data   || [];
+    const runs     = rRes.data   || [];
+    const settings = sRes.data   || { runs_per_team: 3, ranking_mode: 'best' };
+
+    subtitle.textContent = `All registered teams and their members — ${teams.length} team${teams.length !== 1 ? 's' : ''} total`;
+
+    if (teams.length === 0) {
+      grid.innerHTML = `<div class="state" style="grid-column:1/-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        No teams registered yet.
+      </div>`;
+      return;
+    }
+
+    const scored = teams.map(t => {
+      const tr = runs.filter(r => r.team_id === t.id);
+      return { ...t, _members: members.filter(m => m.team_id === t.id), _runs: tr, _score: bestScore(tr, settings.ranking_mode, settings.runs_per_team) };
+    }).sort((a, b) => {
+      if (a._score === null && b._score === null) return 0;
+      if (a._score === null) return 1;
+      if (b._score === null) return -1;
+      return a._score - b._score;
+    });
+
+    let rankCounter = 0, prevScore = null;
+    let html = '';
+    scored.forEach((team, idx) => {
+      if (team._score !== null) {
+        if (team._score !== prevScore) { rankCounter = idx + 1; prevScore = team._score; }
+      }
+      const displayRank = team._score !== null ? rankCounter : null;
+      const cardClass = displayRank === 1 ? 'gold' : displayRank === 2 ? 'silver' : displayRank === 3 ? 'bronze' : '';
+
+      const membersHtml = team._members.length
+        ? team._members.map(m => `<span class="chip">${escHtml(m.name)}</span>`).join('')
+        : `<span class="no-members">No members listed yet</span>`;
+
+      const [rankTxt, rankCls] = displayRank ? rankLabel(displayRank) : ['', ''];
+      const runsCount = team._runs.length;
+
+      html += `
+        <div class="card ${cardClass}">
+          <div class="card-head">
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <div class="team-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+              </div>
+              <div>
+                <div class="team-name">${escHtml(team.name)}</div>
+                <div class="team-num">Team #${team.team_number}</div>
+              </div>
+            </div>
+            ${displayRank ? `<div class="rank ${rankCls}">${rankTxt}</div>` : ''}
+          </div>
+          <div>
+            <div class="members-label">Members</div>
+            <div class="chips">${membersHtml}</div>
+          </div>
+          <div class="card-footer">
+            <div class="runs-count">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              ${runsCount} run${runsCount !== 1 ? 's' : ''}
+            </div>
+            ${team._score !== null
+              ? `<div class="score"><div class="score-value">${fmtMs(team._score)}</div><div class="score-mode">${settings.ranking_mode}</div></div>`
+              : `<div class="no-score">No score yet</div>`}
+          </div>
+        </div>`;
+    });
+    grid.innerHTML = html;
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  load();
+</script>
+</body>
+</html>
